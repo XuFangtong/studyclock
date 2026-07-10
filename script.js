@@ -1,95 +1,211 @@
-const STORAGE_KEY = "focus-study-data";
+const STORAGE_KEY = "focus-study-data-v4";
+const VOLUME_STORAGE_KEY = "focus-white-noise-volume";
 
 document.addEventListener("DOMContentLoaded", () => {
   const elements = {
     todayLabel: document.getElementById("todayLabel"),
 
-    statusDot: document.getElementById("statusDot"),
-    statusText: document.getElementById("statusText"),
+    calendarWrapper:
+      document.getElementById("calendarWrapper"),
 
-    sessionTimer: document.getElementById("sessionTimer"),
-    dailyTotal: document.getElementById("dailyTotal"),
-    leaveCount: document.getElementById("leaveCount"),
-    continuousTimer: document.getElementById("continuousTimer"),
+    calendarMonthTitle:
+      document.getElementById("calendarMonthTitle"),
 
-    visibilityTip: document.getElementById("visibilityTip"),
+    calendarGrid:
+      document.getElementById("calendarGrid"),
 
-    startBtn: document.getElementById("startBtn"),
-    stopBtn: document.getElementById("stopBtn"),
+    soundToggleBtn:
+      document.getElementById("soundToggleBtn"),
 
-    openTasksBtn: document.getElementById("openTasksBtn"),
-    closeTasksBtn: document.getElementById("closeTasksBtn"),
-    tasksModal: document.getElementById("tasksModal"),
+    volumeSlider:
+      document.getElementById("volumeSlider"),
 
-    openRecordsBtn: document.getElementById("openRecordsBtn"),
-    closeRecordsBtn: document.getElementById("closeRecordsBtn"),
-    recordsModal: document.getElementById("recordsModal"),
+    volumeValue:
+      document.getElementById("volumeValue"),
 
-    taskForm: document.getElementById("taskForm"),
-    taskInput: document.getElementById("taskInput"),
-    taskList: document.getElementById("taskList"),
-    taskEmpty: document.getElementById("taskEmpty"),
-    taskProgress: document.getElementById("taskProgress"),
+    statusDot:
+      document.getElementById("statusDot"),
 
-    recordList: document.getElementById("recordList"),
-    recordEmpty: document.getElementById("recordEmpty"),
-    clearRecordsBtn: document.getElementById("clearRecordsBtn"),
+    statusText:
+      document.getElementById("statusText"),
 
-    toast: document.getElementById("toast")
+    sessionTimer:
+      document.getElementById("sessionTimer"),
+
+    dailyTotal:
+      document.getElementById("dailyTotal"),
+
+    leaveCount:
+      document.getElementById("leaveCount"),
+
+    continuousTimer:
+      document.getElementById("continuousTimer"),
+
+    visibilityTip:
+      document.getElementById("visibilityTip"),
+
+    startBtn:
+      document.getElementById("startBtn"),
+
+    stopBtn:
+      document.getElementById("stopBtn"),
+
+    openTasksBtn:
+      document.getElementById("openTasksBtn"),
+
+    closeTasksBtn:
+      document.getElementById("closeTasksBtn"),
+
+    tasksModal:
+      document.getElementById("tasksModal"),
+
+    openRecordsBtn:
+      document.getElementById("openRecordsBtn"),
+
+    closeRecordsBtn:
+      document.getElementById("closeRecordsBtn"),
+
+    recordsModal:
+      document.getElementById("recordsModal"),
+
+    taskForm:
+      document.getElementById("taskForm"),
+
+    taskInput:
+      document.getElementById("taskInput"),
+
+    taskList:
+      document.getElementById("taskList"),
+
+    taskEmpty:
+      document.getElementById("taskEmpty"),
+
+    taskProgress:
+      document.getElementById("taskProgress"),
+
+    recordList:
+      document.getElementById("recordList"),
+
+    recordEmpty:
+      document.getElementById("recordEmpty"),
+
+    clearRecordsBtn:
+      document.getElementById("clearRecordsBtn"),
+
+    toast:
+      document.getElementById("toast")
   };
 
   let timer = null;
   let toastTimer = null;
 
+  let audioContext = null;
+  let noiseSource = null;
+  let noiseGain = null;
+  let noiseFilter = null;
+  let isNoisePlaying = false;
+
   let state = createInitialState();
 
-  function createInitialState() {
+  function createEmptyDay() {
     return {
-      date: getTodayKey(),
-
       dailyTotalMs: 0,
       leaveCount: 0,
-
       tasks: [],
-      records: [],
-
-      sessionActive: false,
-      sessionElapsedMs: 0,
-      continuousMs: 0,
-
-      sessionStartedAt: null,
-      lastTickAt: null,
-      pausedByVisibility: false
+      records: []
     };
   }
 
-  function getTodayKey() {
-    const now = new Date();
+  function createInitialState() {
+    const today = getDateKey();
 
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
+    return {
+      currentDate: today,
+
+      days: {
+        [today]: createEmptyDay()
+      },
+
+      session: {
+        active: false,
+        date: today,
+        elapsedMs: 0,
+        continuousMs: 0,
+        startedAt: null,
+        lastTickAt: null,
+        pausedByVisibility: false
+      }
+    };
+  }
+
+  function getDateKey(date = new Date()) {
+    const year = date.getFullYear();
+
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   }
 
   function getTodayText() {
-    return new Intl.DateTimeFormat("zh-CN", {
-      month: "long",
-      day: "numeric",
-      weekday: "long"
-    }).format(new Date());
+    return new Intl.DateTimeFormat(
+      "zh-CN",
+      {
+        month: "long",
+        day: "numeric",
+        weekday: "long"
+      }
+    ).format(new Date());
+  }
+
+  function getCurrentDayData() {
+    const today = getDateKey();
+
+    if (!state.days[today]) {
+      state.days[today] = createEmptyDay();
+    }
+
+    return state.days[today];
+  }
+
+  function ensureCurrentDay() {
+    const today = getDateKey();
+
+    if (!state.days[today]) {
+      state.days[today] = createEmptyDay();
+    }
+
+    state.currentDate = today;
   }
 
   function formatDuration(milliseconds) {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+    const totalSeconds = Math.floor(
+      milliseconds / 1000
+    );
 
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const hours = Math.floor(
+      totalSeconds / 3600
+    );
+
+    const minutes = Math.floor(
+      (totalSeconds % 3600) / 60
+    );
+
     const seconds = totalSeconds % 60;
 
-    return [hours, minutes, seconds]
-      .map((number) => String(number).padStart(2, "0"))
+    return [
+      hours,
+      minutes,
+      seconds
+    ]
+      .map((value) =>
+        String(value).padStart(2, "0")
+      )
       .join(":");
   }
 
@@ -98,11 +214,14 @@ document.addEventListener("DOMContentLoaded", () => {
       return "--:--";
     }
 
-    return new Intl.DateTimeFormat("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    }).format(new Date(timestamp));
+    return new Intl.DateTimeFormat(
+      "zh-CN",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }
+    ).format(new Date(timestamp));
   }
 
   function createId() {
@@ -125,81 +244,156 @@ document.addEventListener("DOMContentLoaded", () => {
         JSON.stringify(state)
       );
     } catch (error) {
-      console.error("保存网页数据失败：", error);
+      console.error(
+        "保存网页数据失败：",
+        error
+      );
+    }
+  }
+
+  function migrateOldData() {
+    const oldKeys = [
+      "focus-study-data-v3",
+      "focus-study-data",
+      "focusStudyDataV1"
+    ];
+
+    for (const key of oldKeys) {
+      const raw = localStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      try {
+        const oldData = JSON.parse(raw);
+
+        if (oldData.days) {
+          state = {
+            ...createInitialState(),
+            ...oldData,
+
+            days: {
+              ...createInitialState().days,
+              ...oldData.days
+            },
+
+            session: {
+              ...createInitialState().session,
+              active: false,
+              elapsedMs: 0,
+              continuousMs: 0,
+              startedAt: null,
+              lastTickAt: null,
+              pausedByVisibility: false
+            }
+          };
+        } else {
+          const oldDate =
+            oldData.date || getDateKey();
+
+          const oldDay = createEmptyDay();
+
+          oldDay.dailyTotalMs =
+            Number(oldData.dailyTotalMs) || 0;
+
+          oldDay.leaveCount =
+            Number(oldData.leaveCount) || 0;
+
+          oldDay.tasks =
+            Array.isArray(oldData.tasks)
+              ? oldData.tasks
+              : [];
+
+          oldDay.records =
+            Array.isArray(oldData.records)
+              ? oldData.records
+              : [];
+
+          state.days[oldDate] = oldDay;
+        }
+
+        localStorage.removeItem(key);
+        saveState();
+
+        return;
+      } catch (error) {
+        console.warn(
+          "旧版数据转换失败：",
+          error
+        );
+      }
     }
   }
 
   function loadState() {
     try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      const saved =
+        localStorage.getItem(STORAGE_KEY);
 
-      if (!savedData) {
+      if (!saved) {
+        migrateOldData();
+        ensureCurrentDay();
         return;
       }
 
-      const parsedData = JSON.parse(savedData);
-
-      if (parsedData.date !== getTodayKey()) {
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
+      const parsed = JSON.parse(saved);
 
       state = {
         ...createInitialState(),
-        ...parsedData,
+        ...parsed,
 
-        /*
-          刷新或重新打开网页后，不自动继续上一轮学习。
-          已经保存的累计时间、任务和记录不会丢失。
-        */
-        sessionActive: false,
-        sessionElapsedMs: 0,
-        continuousMs: 0,
-        sessionStartedAt: null,
-        lastTickAt: null,
-        pausedByVisibility: false
+        days: {
+          ...createInitialState().days,
+          ...(parsed.days || {})
+        },
+
+        session: {
+          ...createInitialState().session,
+          ...(parsed.session || {}),
+
+          active: false,
+          elapsedMs: 0,
+          continuousMs: 0,
+          startedAt: null,
+          lastTickAt: null,
+          pausedByVisibility: false
+        }
       };
     } catch (error) {
-      console.error("读取网页数据失败：", error);
+      console.error(
+        "读取网页数据失败：",
+        error
+      );
 
       localStorage.removeItem(STORAGE_KEY);
+
       state = createInitialState();
     }
-  }
 
-  function checkNewDay() {
-    const today = getTodayKey();
-
-    if (state.date === today) {
-      return;
-    }
-
-    stopTimer();
-
-    state = createInitialState();
-
+    ensureCurrentDay();
     saveState();
   }
 
   function updateTime() {
     if (
-      !state.sessionActive ||
+      !state.session.active ||
       document.hidden ||
-      state.lastTickAt === null
+      state.session.lastTickAt === null
     ) {
       return;
     }
 
     const now = Date.now();
 
-    const elapsedSinceLastTick = Math.max(
+    const difference = Math.max(
       0,
-      now - state.lastTickAt
+      now - state.session.lastTickAt
     );
 
-    state.sessionElapsedMs += elapsedSinceLastTick;
-    state.continuousMs += elapsedSinceLastTick;
-    state.lastTickAt = now;
+    state.session.elapsedMs += difference;
+    state.session.continuousMs += difference;
+    state.session.lastTickAt = now;
   }
 
   function startTimer() {
@@ -221,24 +415,30 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startStudy() {
-    if (state.sessionActive) {
+    if (state.session.active) {
       return;
     }
 
-    checkNewDay();
+    ensureCurrentDay();
 
     const now = Date.now();
+    const today = getDateKey();
 
-    state.sessionActive = true;
-    state.sessionElapsedMs = 0;
-    state.continuousMs = 0;
+    state.session = {
+      active: true,
+      date: today,
+      elapsedMs: 0,
+      continuousMs: 0,
+      startedAt: now,
 
-    state.sessionStartedAt = now;
+      lastTickAt:
+        document.hidden
+          ? null
+          : now,
 
-    state.pausedByVisibility = document.hidden;
-    state.lastTickAt = document.hidden
-      ? null
-      : now;
+      pausedByVisibility:
+        document.hidden
+    };
 
     if (!document.hidden) {
       startTimer();
@@ -251,7 +451,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function stopStudy() {
-    if (!state.sessionActive) {
+    if (!state.session.active) {
       return;
     }
 
@@ -259,26 +459,40 @@ document.addEventListener("DOMContentLoaded", () => {
     stopTimer();
 
     const endedAt = Date.now();
-    const duration = state.sessionElapsedMs;
+    const duration = state.session.elapsedMs;
+
+    const sessionDate =
+      state.session.date || getDateKey();
+
+    if (!state.days[sessionDate]) {
+      state.days[sessionDate] =
+        createEmptyDay();
+    }
+
+    const dayData =
+      state.days[sessionDate];
 
     if (duration > 0) {
-      state.dailyTotalMs += duration;
+      dayData.dailyTotalMs += duration;
 
-      state.records.unshift({
+      dayData.records.unshift({
         id: createId(),
-        startedAt: state.sessionStartedAt,
+        startedAt:
+          state.session.startedAt,
         endedAt,
         durationMs: duration
       });
     }
 
-    state.sessionActive = false;
-    state.sessionElapsedMs = 0;
-    state.continuousMs = 0;
-
-    state.sessionStartedAt = null;
-    state.lastTickAt = null;
-    state.pausedByVisibility = false;
+    state.session = {
+      active: false,
+      date: getDateKey(),
+      elapsedMs: 0,
+      continuousMs: 0,
+      startedAt: null,
+      lastTickAt: null,
+      pausedByVisibility: false
+    };
 
     saveState();
     render();
@@ -291,7 +505,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleVisibilityChange() {
-    if (!state.sessionActive) {
+    if (!state.session.active) {
       renderStatus();
       return;
     }
@@ -299,16 +513,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (document.hidden) {
       updateTime();
 
-      state.leaveCount += 1;
-      state.continuousMs = 0;
+      const dayData = getCurrentDayData();
 
-      state.lastTickAt = null;
-      state.pausedByVisibility = true;
+      dayData.leaveCount += 1;
+
+      state.session.continuousMs = 0;
+      state.session.lastTickAt = null;
+      state.session.pausedByVisibility = true;
 
       stopTimer();
     } else {
-      state.lastTickAt = Date.now();
-      state.pausedByVisibility = false;
+      state.session.lastTickAt = Date.now();
+      state.session.pausedByVisibility = false;
 
       startTimer();
     }
@@ -318,7 +534,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function addTask(title) {
-    state.tasks.push({
+    const dayData = getCurrentDayData();
+
+    dayData.tasks.push({
       id: createId(),
       title,
       completed: false
@@ -329,7 +547,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function toggleTask(taskId) {
-    const task = state.tasks.find(
+    const dayData = getCurrentDayData();
+
+    const task = dayData.tasks.find(
       (item) => item.id === taskId
     );
 
@@ -344,7 +564,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function deleteTask(taskId) {
-    state.tasks = state.tasks.filter(
+    const dayData = getCurrentDayData();
+
+    dayData.tasks = dayData.tasks.filter(
       (item) => item.id !== taskId
     );
 
@@ -353,8 +575,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function clearRecords() {
-    state.records = [];
-    state.dailyTotalMs = 0;
+    const dayData = getCurrentDayData();
+
+    dayData.records = [];
+    dayData.dailyTotalMs = 0;
 
     saveState();
     render();
@@ -379,40 +603,54 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderTimers() {
-    elements.sessionTimer.textContent =
-      formatDuration(state.sessionElapsedMs);
+    const dayData = getCurrentDayData();
 
-    const currentDailyTotal =
-      state.dailyTotalMs +
+    elements.sessionTimer.textContent =
+      formatDuration(
+        state.session.elapsedMs
+      );
+
+    const activeToday =
+      state.session.active &&
+      state.session.date === getDateKey();
+
+    const displayedDailyTotal =
+      dayData.dailyTotalMs +
       (
-        state.sessionActive
-          ? state.sessionElapsedMs
+        activeToday
+          ? state.session.elapsedMs
           : 0
       );
 
     elements.dailyTotal.textContent =
-      formatDuration(currentDailyTotal);
+      formatDuration(displayedDailyTotal);
 
     elements.leaveCount.textContent =
-      String(state.leaveCount);
+      String(dayData.leaveCount);
 
     elements.continuousTimer.textContent =
-      formatDuration(state.continuousMs);
+      formatDuration(
+        state.session.continuousMs
+      );
   }
 
   function renderStatus() {
-    elements.statusDot.className = "status-dot";
+    elements.statusDot.className =
+      "status-dot";
 
-    if (!state.sessionActive) {
-      elements.statusText.textContent = "尚未开始";
+    if (!state.session.active) {
+      elements.statusText.textContent =
+        "尚未开始";
 
       elements.visibilityTip.textContent =
         "当前页面可见，点击开始后将正常计时。";
     } else if (
       document.hidden ||
-      state.pausedByVisibility
+      state.session.pausedByVisibility
     ) {
-      elements.statusDot.classList.add("paused");
+      elements.statusDot.classList.add(
+        "paused"
+      );
 
       elements.statusText.textContent =
         "已自动暂停";
@@ -420,7 +658,9 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.visibilityTip.textContent =
         "页面进入后台，返回后将自动继续计时。";
     } else {
-      elements.statusDot.classList.add("running");
+      elements.statusDot.classList.add(
+        "running"
+      );
 
       elements.statusText.textContent =
         "正在专注";
@@ -430,23 +670,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     elements.startBtn.disabled =
-      state.sessionActive;
+      state.session.active;
 
     elements.stopBtn.disabled =
-      !state.sessionActive;
+      !state.session.active;
   }
 
   function renderTasks() {
+    const dayData = getCurrentDayData();
+
     elements.taskList.innerHTML = "";
 
-    state.tasks.forEach((task) => {
-      const listItem = document.createElement("li");
+    dayData.tasks.forEach((task) => {
+      const listItem =
+        document.createElement("li");
 
-      listItem.className = task.completed
-        ? "task-item completed"
-        : "task-item";
+      listItem.className =
+        task.completed
+          ? "task-item completed"
+          : "task-item";
 
-      const checkbox = document.createElement("input");
+      const checkbox =
+        document.createElement("input");
 
       checkbox.type = "checkbox";
       checkbox.className = "task-check";
@@ -457,11 +702,15 @@ document.addEventListener("DOMContentLoaded", () => {
         `完成任务：${task.title}`
       );
 
-      checkbox.addEventListener("change", () => {
-        toggleTask(task.id);
-      });
+      checkbox.addEventListener(
+        "change",
+        () => {
+          toggleTask(task.id);
+        }
+      );
 
-      const title = document.createElement("span");
+      const title =
+        document.createElement("span");
 
       title.className = "task-title";
       title.textContent = task.title;
@@ -473,9 +722,12 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteButton.className = "icon-btn";
       deleteButton.textContent = "删除";
 
-      deleteButton.addEventListener("click", () => {
-        deleteTask(task.id);
-      });
+      deleteButton.addEventListener(
+        "click",
+        () => {
+          deleteTask(task.id);
+        }
+      );
 
       listItem.append(
         checkbox,
@@ -483,60 +735,188 @@ document.addEventListener("DOMContentLoaded", () => {
         deleteButton
       );
 
-      elements.taskList.appendChild(listItem);
+      elements.taskList.appendChild(
+        listItem
+      );
     });
 
-    const completedCount = state.tasks.filter(
-      (task) => task.completed
-    ).length;
+    const completedCount =
+      dayData.tasks.filter(
+        (task) => task.completed
+      ).length;
 
     elements.taskProgress.textContent =
-      `${completedCount} / ${state.tasks.length}`;
+      `${completedCount} / ${dayData.tasks.length}`;
 
     elements.taskEmpty.hidden =
-      state.tasks.length > 0;
+      dayData.tasks.length > 0;
   }
 
   function renderRecords() {
+    const dayData = getCurrentDayData();
+
     elements.recordList.innerHTML = "";
 
-    state.records.forEach((record, index) => {
-      const item = document.createElement("div");
+    dayData.records.forEach(
+      (record, index) => {
+        const item =
+          document.createElement("div");
 
-      item.className = "record-item";
+        item.className = "record-item";
 
-      const meta = document.createElement("div");
+        const meta =
+          document.createElement("div");
 
-      meta.className = "record-meta";
+        meta.className = "record-meta";
 
-      const title = document.createElement("strong");
+        const title =
+          document.createElement("strong");
 
-      title.textContent =
-        `学习记录 ${state.records.length - index}`;
+        title.textContent =
+          `学习记录 ${
+            dayData.records.length - index
+          }`;
 
-      const time = document.createElement("span");
+        const time =
+          document.createElement("span");
 
-      time.textContent =
-        `${formatTime(record.startedAt)} — ${formatTime(record.endedAt)}`;
+        time.textContent =
+          `${formatTime(
+            record.startedAt
+          )} — ${formatTime(
+            record.endedAt
+          )}`;
 
-      const duration = document.createElement("div");
+        const duration =
+          document.createElement("div");
 
-      duration.className = "record-duration";
-      duration.textContent =
-        formatDuration(record.durationMs);
+        duration.className =
+          "record-duration";
 
-      meta.append(title, time);
-      item.append(meta, duration);
+        duration.textContent =
+          formatDuration(
+            record.durationMs
+          );
 
-      elements.recordList.appendChild(item);
-    });
+        meta.append(title, time);
+
+        item.append(meta, duration);
+
+        elements.recordList.appendChild(
+          item
+        );
+      }
+    );
 
     elements.recordEmpty.hidden =
-      state.records.length > 0;
+      dayData.records.length > 0;
+  }
+
+  function getStudyDurationForDate(
+    dateKey
+  ) {
+    const dayData = state.days[dateKey];
+
+    let duration =
+      dayData
+        ? Number(dayData.dailyTotalMs) || 0
+        : 0;
+
+    if (
+      state.session.active &&
+      state.session.date === dateKey
+    ) {
+      duration += state.session.elapsedMs;
+    }
+
+    return duration;
+  }
+
+  function renderCalendar() {
+    const now = new Date();
+
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    elements.calendarMonthTitle.textContent =
+      `${year}年${month + 1}月`;
+
+    elements.calendarGrid.innerHTML = "";
+
+    const firstDay =
+      new Date(year, month, 1);
+
+    const daysInMonth =
+      new Date(
+        year,
+        month + 1,
+        0
+      ).getDate();
+
+    const emptyCount =
+      (firstDay.getDay() + 6) % 7;
+
+    for (
+      let index = 0;
+      index < emptyCount;
+      index += 1
+    ) {
+      const emptyCell =
+        document.createElement("div");
+
+      emptyCell.className =
+        "calendar-day empty";
+
+      elements.calendarGrid.appendChild(
+        emptyCell
+      );
+    }
+
+    const todayKey = getDateKey();
+
+    for (
+      let day = 1;
+      day <= daysInMonth;
+      day += 1
+    ) {
+      const date =
+        new Date(year, month, day);
+
+      const dateKey = getDateKey(date);
+
+      const duration =
+        getStudyDurationForDate(dateKey);
+
+      const cell =
+        document.createElement("div");
+
+      cell.className = "calendar-day";
+      cell.textContent = String(day);
+
+      if (duration > 0) {
+        cell.classList.add("studied");
+      }
+
+      if (dateKey === todayKey) {
+        cell.classList.add("today");
+      }
+
+      const durationText =
+        duration > 0
+          ? `学习 ${formatDuration(duration)}`
+          : "没有学习记录";
+
+      cell.title =
+        `${dateKey} · ${durationText}`;
+
+      elements.calendarGrid.appendChild(
+        cell
+      );
+    }
   }
 
   function render() {
-    checkNewDay();
+    ensureCurrentDay();
 
     elements.todayLabel.textContent =
       getTodayText();
@@ -545,18 +925,308 @@ document.addEventListener("DOMContentLoaded", () => {
     renderStatus();
     renderTasks();
     renderRecords();
+    renderCalendar();
   }
 
   function showToast(message) {
     window.clearTimeout(toastTimer);
 
     elements.toast.textContent = message;
+
     elements.toast.classList.add("show");
 
-    toastTimer = window.setTimeout(() => {
-      elements.toast.classList.remove("show");
-    }, 2200);
+    toastTimer = window.setTimeout(
+      () => {
+        elements.toast.classList.remove(
+          "show"
+        );
+      },
+      2200
+    );
   }
+
+  /* 白噪音 */
+
+  function createWhiteNoiseBuffer(context) {
+    const durationSeconds = 3;
+
+    const bufferSize = Math.floor(
+      context.sampleRate * durationSeconds
+    );
+
+    const buffer = context.createBuffer(
+      1,
+      bufferSize,
+      context.sampleRate
+    );
+
+    const channelData =
+      buffer.getChannelData(0);
+
+    let lastValue = 0;
+
+    for (
+      let index = 0;
+      index < bufferSize;
+      index += 1
+    ) {
+      const white =
+        Math.random() * 2 - 1;
+
+      /*
+        轻微平滑随机噪音，让声音没有那么刺耳，
+        更接近适合学习使用的柔和白噪音。
+      */
+      lastValue =
+        lastValue * 0.15 +
+        white * 0.85;
+
+      channelData[index] = lastValue;
+    }
+
+    return buffer;
+  }
+
+  function getNoiseVolume() {
+    const sliderValue =
+      Number(elements.volumeSlider.value);
+
+    /*
+      限制最大实际增益，避免白噪音过响。
+    */
+    return (sliderValue / 100) * 0.22;
+  }
+
+  async function startWhiteNoise() {
+    try {
+      const AudioContextClass =
+        window.AudioContext ||
+        window.webkitAudioContext;
+
+      if (!AudioContextClass) {
+        showToast(
+          "当前浏览器不支持白噪音播放"
+        );
+        return;
+      }
+
+      if (!audioContext) {
+        audioContext =
+          new AudioContextClass();
+      }
+
+      if (
+        audioContext.state === "suspended"
+      ) {
+        await audioContext.resume();
+      }
+
+      stopNoiseNodes();
+
+      noiseSource =
+        audioContext.createBufferSource();
+
+      noiseGain =
+        audioContext.createGain();
+
+      noiseFilter =
+        audioContext.createBiquadFilter();
+
+      noiseSource.buffer =
+        createWhiteNoiseBuffer(
+          audioContext
+        );
+
+      noiseSource.loop = true;
+
+      noiseFilter.type = "lowpass";
+      noiseFilter.frequency.value = 8000;
+      noiseFilter.Q.value = 0.4;
+
+      noiseGain.gain.value =
+        getNoiseVolume();
+
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(
+        audioContext.destination
+      );
+
+      noiseSource.start();
+
+      isNoisePlaying = true;
+
+      renderSoundControl();
+
+      showToast("白噪音已开启");
+    } catch (error) {
+      console.error(
+        "白噪音播放失败：",
+        error
+      );
+
+      isNoisePlaying = false;
+
+      renderSoundControl();
+
+      showToast("白噪音播放失败");
+    }
+  }
+
+  function stopNoiseNodes() {
+    if (noiseSource) {
+      try {
+        noiseSource.stop();
+      } catch (error) {
+        console.warn(error);
+      }
+
+      try {
+        noiseSource.disconnect();
+      } catch (error) {
+        console.warn(error);
+      }
+
+      noiseSource = null;
+    }
+
+    if (noiseFilter) {
+      try {
+        noiseFilter.disconnect();
+      } catch (error) {
+        console.warn(error);
+      }
+
+      noiseFilter = null;
+    }
+
+    if (noiseGain) {
+      try {
+        noiseGain.disconnect();
+      } catch (error) {
+        console.warn(error);
+      }
+
+      noiseGain = null;
+    }
+  }
+
+  function stopWhiteNoise() {
+    stopNoiseNodes();
+
+    isNoisePlaying = false;
+
+    renderSoundControl();
+
+    showToast("白噪音已关闭");
+  }
+
+  function toggleWhiteNoise() {
+    if (isNoisePlaying) {
+      stopWhiteNoise();
+    } else {
+      startWhiteNoise();
+    }
+  }
+
+  function updateNoiseVolume() {
+    const volume =
+      Number(elements.volumeSlider.value);
+
+    elements.volumeValue.textContent =
+      `${volume}%`;
+
+    if (
+      noiseGain &&
+      audioContext
+    ) {
+      noiseGain.gain.setTargetAtTime(
+        getNoiseVolume(),
+        audioContext.currentTime,
+        0.03
+      );
+    }
+
+    try {
+      localStorage.setItem(
+        VOLUME_STORAGE_KEY,
+        String(volume)
+      );
+    } catch (error) {
+      console.warn(
+        "保存音量失败：",
+        error
+      );
+    }
+  }
+
+  function loadNoiseVolume() {
+    let initialVolume = 40;
+
+    try {
+      const savedVolume =
+        localStorage.getItem(
+          VOLUME_STORAGE_KEY
+        );
+
+      if (savedVolume !== null) {
+        initialVolume =
+          Number(savedVolume);
+      }
+    } catch (error) {
+      console.warn(
+        "读取音量失败：",
+        error
+      );
+    }
+
+    if (
+      !Number.isFinite(initialVolume)
+    ) {
+      initialVolume = 40;
+    }
+
+    const safeVolume = Math.min(
+      100,
+      Math.max(0, initialVolume)
+    );
+
+    elements.volumeSlider.value =
+      String(safeVolume);
+
+    elements.volumeValue.textContent =
+      `${safeVolume}%`;
+  }
+
+  function renderSoundControl() {
+    if (isNoisePlaying) {
+      elements.soundToggleBtn.textContent =
+        "关闭声音";
+
+      elements.soundToggleBtn.classList.add(
+        "playing"
+      );
+
+      elements.soundToggleBtn.setAttribute(
+        "aria-pressed",
+        "true"
+      );
+    } else {
+      elements.soundToggleBtn.textContent =
+        "白噪音";
+
+      elements.soundToggleBtn.classList.remove(
+        "playing"
+      );
+
+      elements.soundToggleBtn.setAttribute(
+        "aria-pressed",
+        "false"
+      );
+    }
+  }
+
+  /* 事件绑定 */
 
   elements.startBtn.addEventListener(
     "click",
@@ -566,6 +1236,16 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.stopBtn.addEventListener(
     "click",
     stopStudy
+  );
+
+  elements.soundToggleBtn.addEventListener(
+    "click",
+    toggleWhiteNoise
+  );
+
+  elements.volumeSlider.addEventListener(
+    "input",
+    updateNoiseVolume
   );
 
   elements.taskForm.addEventListener(
@@ -591,18 +1271,24 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.clearRecordsBtn.addEventListener(
     "click",
     () => {
+      const dayData =
+        getCurrentDayData();
+
       const hasNoRecords =
-        state.records.length === 0 &&
-        state.dailyTotalMs === 0;
+        dayData.records.length === 0 &&
+        dayData.dailyTotalMs === 0;
 
       if (hasNoRecords) {
-        showToast("今天还没有学习记录");
+        showToast(
+          "今天还没有学习记录"
+        );
         return;
       }
 
-      const confirmed = window.confirm(
-        "确定清空今天的学习记录和累计时长吗？"
-      );
+      const confirmed =
+        window.confirm(
+          "确定清空今天的学习记录和累计时长吗？"
+        );
 
       if (confirmed) {
         clearRecords();
@@ -647,7 +1333,9 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.tasksModal.addEventListener(
     "click",
     (event) => {
-      if (event.target === elements.tasksModal) {
+      if (
+        event.target === elements.tasksModal
+      ) {
         closeModal(elements.tasksModal);
       }
     }
@@ -656,10 +1344,19 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.recordsModal.addEventListener(
     "click",
     (event) => {
-      if (event.target === elements.recordsModal) {
-        closeModal(elements.recordsModal);
+      if (
+        event.target === elements.recordsModal
+      ) {
+        closeModal(
+          elements.recordsModal
+        );
       }
     }
+  );
+
+  elements.calendarWrapper.addEventListener(
+    "mouseenter",
+    renderCalendar
   );
 
   document.addEventListener(
@@ -684,8 +1381,12 @@ document.addEventListener("DOMContentLoaded", () => {
     () => {
       updateTime();
       saveState();
+      stopNoiseNodes();
     }
   );
+
+  loadNoiseVolume();
+  renderSoundControl();
 
   loadState();
   render();
