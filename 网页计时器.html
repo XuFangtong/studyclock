@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>专注学习计时器</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">FOCUS STUDY</p>
+        <h1>专注学习计时器</h1>
+      </div>
+
+      <div class="top-actions">
+        <button class="header-btn" id="openTasksBtn">
+          今日任务
+        </button>
+
+        <button class="header-btn" id="openRecordsBtn">
+          学习记录
+        </button>
+
+        <div class="today-label" id="todayLabel"></div>
+      </div>
+    </header>
+
+    <section class="main-layout">
+      <article class="timer-card panel">
+        <div class="status-row">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">尚未开始</span>
+        </div>
+
+        <div class="timer-center">
+          <p class="timer-label">本次学习时长</p>
+
+          <div class="main-timer" id="sessionTimer">
+            00:00:00
+          </div>
+
+          <div class="control-row">
+            <button class="primary-btn" id="startBtn">
+              开始学习
+            </button>
+
+            <button class="danger-btn" id="stopBtn" disabled>
+              停止并记录
+            </button>
+          </div>
+
+          <p class="visibility-tip" id="visibilityTip">
+            当前页面可见，点击开始后将正常计时。
+          </p>
+        </div>
+      </article>
+
+      <article class="stats-card panel">
+        <div>
+          <p class="eyebrow">TODAY</p>
+          <h2>今日数据</h2>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span>每日累计时长</span>
+            <strong id="dailyTotal">00:00:00</strong>
+          </div>
+
+          <div class="stat-item">
+            <span>离开次数</span>
+            <strong id="leaveCount">0</strong>
+          </div>
+
+          <div class="stat-item">
+            <span>连续专注时长</span>
+            <strong id="continuousTimer">00:00:00</strong>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- 今日任务弹窗 -->
+  <div class="modal-overlay" id="tasksModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">TODAY'S PLAN</p>
+          <h2>今日学习任务</h2>
+        </div>
+
+        <div class="modal-header-actions">
+          <span class="task-progress" id="taskProgress">
+            0 / 0
+          </span>
+
+          <button
+            class="close-btn"
+            id="closeTasksBtn"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <form class="task-form" id="taskForm">
+        <input
+          id="taskInput"
+          type="text"
+          maxlength="80"
+          placeholder="输入一项今日学习任务……"
+          autocomplete="off"
+        />
+
+        <button type="submit">
+          添加任务
+        </button>
+      </form>
+
+      <div class="modal-content">
+        <ul class="task-list" id="taskList"></ul>
+
+        <p class="empty-state" id="taskEmpty">
+          今天还没有任务，先添加一项吧。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 学习记录弹窗 -->
+  <div class="modal-overlay" id="recordsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SESSION LOG</p>
+          <h2>本次学习记录</h2>
+        </div>
+
+        <div class="modal-header-actions">
+          <button class="text-btn" id="clearRecordsBtn">
+            清空今日记录
+          </button>
+
+          <button
+            class="close-btn"
+            id="closeRecordsBtn"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-content">
+        <div class="record-list" id="recordList"></div>
+
+        <p class="empty-state" id="recordEmpty">
+          完成一次学习后，记录会显示在这里。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="toast"
+    id="toast"
+    role="status"
+    aria-live="polite"
+  ></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
